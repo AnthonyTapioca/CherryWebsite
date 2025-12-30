@@ -1,9 +1,6 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-
 export const config = {
-  matcher: ['/:path*'],
-  runtime: 'edge' // ⚡ must explicitly set Edge Runtime
+  matcher: '/:path*',
+  runtime: 'edge',
 }
 
 const RATE_LIMIT = 60
@@ -16,7 +13,7 @@ const ALLOWED_BOTS = [
   'bingbot',
   'yandex',
   'duckduckbot',
-  'baiduspider'
+  'baiduspider',
 ]
 
 const BLOCKED_UA = [
@@ -30,22 +27,22 @@ const BLOCKED_UA = [
   'go-http-client',
   'axios',
   'postman',
-  'insomnia'
+  'insomnia',
 ]
 
-export function middleware(req: NextRequest) {
+export default async function middleware(req: Request) {
   const ua = (req.headers.get('user-agent') || '').toLowerCase()
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+  const ip = (req.headers.get('x-forwarded-for') || 'unknown').split(',')[0]
   const now = Date.now()
 
   // Allow known SEO bots
   if (ALLOWED_BOTS.some(bot => ua.includes(bot))) {
-    return NextResponse.next()
+    return fetch(req) // continue request
   }
 
   // Block known downloaders
   if (BLOCKED_UA.some(bot => ua.includes(bot))) {
-    return new NextResponse('Forbidden', { status: 403 })
+    return new Response('Forbidden', { status: 403 })
   }
 
   // Rate limiting
@@ -60,8 +57,8 @@ export function middleware(req: NextRequest) {
   ipStore.set(ip, entry)
 
   if (entry.count > RATE_LIMIT) {
-    return new NextResponse('Too Many Requests', { status: 429 })
+    return new Response('Too Many Requests', { status: 429 })
   }
 
-  return NextResponse.next()
+  return fetch(req)
 }
