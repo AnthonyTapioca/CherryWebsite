@@ -1,21 +1,16 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-/**
- * BASIC CONFIG
- */
-const RATE_LIMIT = 60        // max requests
-const WINDOW_MS = 60_000     // per minute
+export const config = {
+  matcher: ['/:path*'],
+  runtime: 'edge' // ⚡ must explicitly set Edge Runtime
+}
 
-/**
- * In-memory store (Edge-safe)
- * NOTE: This resets on cold start — good enough for scraping deterrence
- */
+const RATE_LIMIT = 60
+const WINDOW_MS = 60_000
+
 const ipStore = new Map<string, { count: number; time: number }>()
 
-/**
- * Allowed bots (SEO)
- */
 const ALLOWED_BOTS = [
   'googlebot',
   'bingbot',
@@ -24,9 +19,6 @@ const ALLOWED_BOTS = [
   'baiduspider'
 ]
 
-/**
- * Blocked user agents (downloaders / scrapers)
- */
 const BLOCKED_UA = [
   'wget',
   'curl',
@@ -43,26 +35,20 @@ const BLOCKED_UA = [
 
 export function middleware(req: NextRequest) {
   const ua = (req.headers.get('user-agent') || '').toLowerCase()
-  const ip = req.ip || 'unknown'
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
   const now = Date.now()
 
-  /**
-   * Allow known good bots
-   */
+  // Allow known SEO bots
   if (ALLOWED_BOTS.some(bot => ua.includes(bot))) {
     return NextResponse.next()
   }
 
-  /**
-   * Block known downloaders
-   */
+  // Block known downloaders
   if (BLOCKED_UA.some(bot => ua.includes(bot))) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 
-  /**
-   * Rate limiting
-   */
+  // Rate limiting
   const entry = ipStore.get(ip) || { count: 0, time: now }
 
   if (now - entry.time > WINDOW_MS) {
@@ -78,13 +64,4 @@ export function middleware(req: NextRequest) {
   }
 
   return NextResponse.next()
-}
-
-/**
- * Apply to all routes except static assets
- */
-export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|robots.txt).*)'
-  ]
 }
